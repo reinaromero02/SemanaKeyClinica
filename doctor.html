@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultate - Portal Médico Antiguo Cuscatlán</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+</head>
+<body class="bg-slate-100 text-slate-900 pb-16 font-sans text-base">
+
+    <!-- 1. LOGIN -->
+    <div id="modalLogin" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-6 text-center border border-slate-200">
+            <div class="w-20 h-20 bg-teal-50 text-teal-800 rounded-3xl mx-auto flex items-center justify-center shadow-inner border border-teal-100">
+                <span class="material-symbols-outlined text-5xl">local_hospital</span>
+            </div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">Portal Médico</h2>
+                <p class="text-sm text-teal-700 font-bold mt-1">Clínica Antiguo Cuscatlán</p>
+            </div>
+            
+            <form onsubmit="verificarCredenciales(event)" class="space-y-4 text-left">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">N° Identificador de Médico / Usuario</label>
+                    <input type="text" id="userMed" placeholder="Ej: 1042 o alta.jefatura" required
+                           class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-teal-500 font-semibold">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Contraseña</label>
+                    <input type="password" id="passMed" placeholder="••••••••" required
+                           class="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 text-base focus:outline-none focus:ring-2 focus:ring-teal-500 font-semibold">
+                </div>
+                <button type="submit" class="w-full bg-slate-800 hover:bg-slate-900 text-white py-4 rounded-2xl font-bold text-base transition shadow-md flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-xl">lock_open</span> Iniciar Sesión
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. PANEL PRINCIPAL -->
+    <div id="panelMedico" class="hidden">
+        <header class="bg-slate-800 text-white p-5 shadow-md sticky top-0 z-40">
+            <div class="max-w-4xl mx-auto flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-4xl text-teal-400">clinical_notes</span>
+                    <div>
+                        <h1 class="font-bold text-lg">Clínica Antiguo Cuscatlán</h1>
+                        <p class="text-xs text-slate-300">Sesión: <strong id="nombreDoctor" class="text-teal-300">Usuario</strong></p>
+                    </div>
+                </div>
+                <button onclick="cerrarSesion()" class="bg-rose-600 hover:bg-rose-700 text-white text-sm px-4 py-2 rounded-xl font-bold transition flex items-center gap-1">
+                    <span class="material-symbols-outlined text-base">logout</span> Salir
+                </button>
+            </div>
+        </header>
+
+        <main class="max-w-4xl mx-auto p-6 space-y-8">
+
+            <!-- A. ALTA JEFATURA -->
+            <div id="seccionAdmin" class="hidden space-y-6">
+                <div class="bg-indigo-50 p-6 rounded-3xl border border-indigo-200 space-y-4">
+                    <div class="flex items-center gap-2 text-indigo-900 font-bold text-xl">
+                        <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+                        <h2>Panel de Alta Jefatura: Antiguo Cuscatlán</h2>
+                    </div>
+                    <form id="formNuevoMedico" onsubmit="registrarNuevoMedico(event)" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <input type="text" id="newMedNombre" placeholder="Nombre completo del Médico" required class="p-3.5 rounded-2xl bg-white border border-indigo-200">
+                        <input type="text" id="newMedNum" placeholder="N° Médico (Ej: 1042)" required class="p-3.5 rounded-2xl bg-white border border-indigo-200 font-bold">
+                        <input type="password" id="newMedPass" placeholder="Contraseña" required class="p-3.5 rounded-2xl bg-white border border-indigo-200">
+                        <button type="submit" class="md:col-span-3 bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-2xl font-bold transition">
+                            Registrar Médico
+                        </button>
+                    </form>
+                    <div class="pt-4 border-t border-indigo-200 space-y-2">
+                        <h3 class="font-bold text-indigo-900">Personal Autorizado:</h3>
+                        <div id="listaMedicosAdmin" class="space-y-2 text-sm"></div>
+                    </div>
+                </div>
+
+                <!-- Respaldo Credenciales -->
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-indigo-600">qr_code_2</span> Respaldo Permanente de PIN y QR
+                    </h3>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="buscarDuiAdminInput" placeholder="DUI del paciente (9 dígitos)" maxlength="9" class="flex-1 p-4 rounded-2xl bg-slate-50 border font-semibold">
+                        <button onclick="buscarQrAdmin()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-bold">Buscar Credenciales</button>
+                    </div>
+                    <div id="cajaQrAdmin" class="hidden p-6 rounded-3xl bg-indigo-50 border text-center space-y-4">
+                        <p class="text-xs font-bold text-indigo-700 uppercase">PIN Privado del Paciente:</p>
+                        <span id="pinAdminDisplay" class="bg-white text-indigo-900 font-mono text-2xl font-black px-6 py-2 rounded-2xl border shadow-sm">----</span>
+                        <div id="qrcodeDisplayAdmin" class="flex justify-center p-4 bg-white rounded-2xl w-fit mx-auto shadow-md"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- B. MÉDICO OPERATIVO -->
+            <div id="seccionDoctor" class="hidden space-y-8">
+
+                <!-- Búsqueda -->
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-4">
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-teal-600">search</span> Búsqueda de Paciente
+                    </h2>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="buscarDuiInput" placeholder="DUI del paciente (9 dígitos)" maxlength="9" class="flex-1 p-4 rounded-2xl bg-slate-50 border font-semibold">
+                        <button onclick="buscarHistorialPaciente()" class="bg-teal-700 hover:bg-teal-800 text-white px-6 py-4 rounded-2xl font-bold">Buscar Paciente</button>
+                    </div>
+                    <div id="cajaQrPaciente" class="hidden p-6 rounded-3xl bg-teal-50 border text-center space-y-4">
+                        <p class="text-xs font-bold text-teal-800 uppercase">PIN Asignado:</p>
+                        <span id="pinDoctorDisplay" class="bg-white text-teal-900 font-mono text-2xl font-black px-6 py-2 rounded-2xl border shadow-sm">----</span>
+                        <div id="qrcodeDisplay" class="flex justify-center p-4 bg-white rounded-2xl w-fit mx-auto shadow-md"></div>
+                    </div>
+                    <div id="resultadoHistorial" class="space-y-4 pt-2"></div>
+                </div>
+
+                <!-- Formulario Nueva Consulta -->
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 space-y-6">
+                    <h2 class="text-xl font-bold text-slate-800">Nueva Consulta Médica • Antiguo Cuscatlán</h2>
+                    <form id="formConsulta" onsubmit="guardarConsulta(event)" class="space-y-5">
+                        
+                        <!-- Identificación y PIN -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">DUI del Paciente (9 dígitos)</label>
+                                <input type="text" id="duiPaciente" oninput="comprobarPacienteExistente()" placeholder="Ej: 048291042" maxlength="9" required
+                                       class="w-full p-3.5 rounded-2xl bg-slate-50 border font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">PIN Privado (4 dígitos)</label>
+                                <input type="password" id="pinPaciente" placeholder="Ej: 1234" maxlength="4" required
+                                       class="w-full p-3.5 rounded-2xl bg-slate-50 border text-center font-black tracking-widest">
+                                <p id="msgPacienteExiste" class="text-xs text-teal-700 mt-1 font-semibold hidden">✅ Paciente existente identificado.</p>
+                            </div>
+                        </div>
+
+                        <!-- Perfil Fijo: Sangre y Contacto de Emergencia -->
+                        <div class="bg-amber-50/60 p-5 rounded-3xl border border-amber-200 space-y-4">
+                            <h3 class="font-bold text-amber-900 flex items-center gap-2">
+                                <span class="material-symbols-outlined">badge</span> Datos Generales de Emergencia
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">Tipo de Sangre</label>
+                                    <select id="tipoSangre" required class="w-full p-3 rounded-xl bg-white border font-bold">
+                                        <option value="">Seleccionar...</option>
+                                        <option value="O+">O Positivo (O+)</option>
+                                        <option value="O-">O Negativo (O-)</option>
+                                        <option value="A+">A Positivo (A+)</option>
+                                        <option value="A-">A Negativo (A-)</option>
+                                        <option value="B+">B Positivo (B+)</option>
+                                        <option value="B-">B Negativo (B-)</option>
+                                        <option value="AB+">AB Positivo (AB+)</option>
+                                        <option value="AB-">AB Negativo (AB-)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">Contacto de Emergencia</label>
+                                    <input type="text" id="contactoNombre" placeholder="Ej: María Romero (Mamá)" required class="w-full p-3 rounded-xl bg-white border text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">Teléfono de Emergencia</label>
+                                    <input type="text" id="contactoTel" placeholder="Ej: 7711-2233" required class="w-full p-3 rounded-xl bg-white border text-sm font-bold">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Alergias y Operaciones -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">Alergias Críticas</label>
+                                <input type="text" id="inputAlergias" placeholder="Ej: Penicilina, AINEs" required class="w-full p-3.5 rounded-2xl bg-slate-50 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">Cirugías u Operaciones</label>
+                                <input type="text" id="inputOperaciones" placeholder="Ej: Apendicectomía (2020)" required class="w-full p-3.5 rounded-2xl bg-slate-50 border">
+                            </div>
+                        </div>
+
+                        <!-- Historial de Inyecciones/Vacunas -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1 flex items-center gap-1">
+                                <span class="material-symbols-outlined text-teal-600">vaccines</span> Inyecciones y Vacunas Aplicadas
+                            </label>
+                            <input type="text" id="inputInyecciones" placeholder="Ej: Tétanos (12/2025), Neurobión intramuscular (Ayer)" required
+                                   class="w-full p-3.5 rounded-2xl bg-slate-50 border">
+                        </div>
+
+                        <!-- Próxima Cita Programada -->
+                        <div class="bg-blue-50 p-5 rounded-3xl border border-blue-200 space-y-3">
+                            <h3 class="font-bold text-blue-900 flex items-center gap-2">
+                                <span class="material-symbols-outlined">event</span> Programar Próxima Consulta
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">Fecha y Hora de Cita</label>
+                                    <input type="datetime-local" id="proximaCitaFecha" required class="w-full p-3 rounded-xl bg-white border font-semibold">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-700 mb-1">Motivo / Especialidad</label>
+                                    <input type="text" id="proximaCitaMotivo" placeholder="Ej: Chequeo de rutina y exámenes" required class="w-full p-3 rounded-xl bg-white border text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Prescripción de Medicamentos -->
+                        <div class="bg-slate-50 p-5 rounded-3xl border space-y-3">
+                            <div class="flex justify-between items-center">
+                                <label class="block text-sm font-bold text-slate-800 flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-teal-600">medication</span> Receta de Medicamentos
+                                </label>
+                                <button type="button" onclick="agregarFilaMedicamento()" class="bg-teal-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold">
+                                    + Agregar Medicamento
+                                </button>
+                            </div>
+                            <div id="listaMedicamentosForm" class="space-y-3">
+                                <div class="fila-med grid grid-cols-1 md:grid-cols-4 gap-2 bg-white p-3 rounded-2xl border">
+                                    <input type="text" placeholder="Medicamento" class="med-nombre p-2.5 rounded-xl bg-slate-50 border text-sm font-medium" required>
+                                    <input type="text" placeholder="Dosis" class="med-dosis p-2.5 rounded-xl bg-slate-50 border text-sm" required>
+                                    <input type="text" placeholder="Horario" class="med-horario p-2.5 rounded-xl bg-slate-50 border text-sm" required>
+                                    <input type="text" placeholder="Duración" class="med-duracion p-2.5 rounded-xl bg-slate-50 border text-sm" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Diagnóstico -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">Diagnóstico Clínico (Cifrado AES-256)</label>
+                            <textarea id="notaMedica" rows="3" placeholder="Evaluación clínica..." required class="w-full p-3.5 rounded-2xl bg-slate-50 border"></textarea>
+                        </div>
+
+                        <button type="submit" class="w-full bg-slate-800 hover:bg-slate-900 text-white py-4 rounded-2xl font-bold text-base shadow-md flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-xl">qr_code</span> Guardar Consulta y Actualizar QR
+                        </button>
+                    </form>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <!-- 3. JAVASCRIPT -->
+<script>
+    const CLAVE_SECRETA = "ClaveAntiguoCuscatlan2026";
+    const dbLocal = new PouchDB('expediente_antiguo_cuscatlan');
+    const dbRemota = new PouchDB('http://127.0.0.1:5984/expediente_antiguo_cuscatlan');
+    let esUsuarioJefatura = false;
+    let pinPacienteEncontrado = null;
+
+    dbLocal.sync(dbRemota, { live: true, retry: true }).on('error', err => console.log('Sincronización...', err));
+
+    function validarDui(dui) { return /^\d{9}$/.test(dui); }
+
+    // Formateador automático para teléfonos de 8 dígitos (Ej: 7711-2233)
+    function formatearTelefono(input) {
+        let num = input.value.replace(/\D/g, '');
+        if (num.length > 8) num = num.substring(0, 8);
+        if (num.length > 4) {
+            input.value = num.substring(0, 4) + '-' + num.substring(4);
+        } else {
+            input.value = num;
+        }
+    }
+
+    function hablarTexto(texto) {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const mensaje = new SpeechSynthesisUtterance(texto);
+        mensaje.lang = 'es-SV';
+        mensaje.rate = 0.90;
+        window.speechSynthesis.speak(mensaje);
+    }
+
+    async function verificarCredenciales(e) {
+        e.preventDefault();
+        const usuario = document.getElementById('userMed').value.trim().toLowerCase();
+        const clave = document.getElementById('passMed').value.trim();
+
+        if (usuario === 'alta.jefatura' && clave === 'jefatura2026') {
+            esUsuarioJefatura = true;
+            iniciarSesionExitosa('Alta Jefatura / Antiguo Cuscatlán', true);
+            return;
+        }
+
+        try {
+            const doc = await dbLocal.get('user_medico_' + usuario);
+            const bytes = CryptoJS.AES.decrypt(doc.claveCifrada, CLAVE_SECRETA);
+            const claveOriginal = bytes.toString(CryptoJS.enc.Utf8);
+
+            if (claveOriginal === clave) {
+                esUsuarioJefatura = false;
+                iniciarSesionExitosa(doc.nombreCompleto + ' (N° ' + doc.numMedico + ')', false);
+            } else { alert('❌ Contraseña incorrecta.'); }
+        } catch (err) { alert('❌ Médico no encontrado.'); }
+    }
+
+    function iniciarSesionExitosa(nombreUsuario, esJefatura) {
+        document.getElementById('nombreDoctor').innerText = nombreUsuario;
+        document.getElementById('modalLogin').style.display = 'none';
+        document.getElementById('panelMedico').classList.remove('hidden');
+
+        if (esJefatura) {
+            document.getElementById('seccionAdmin').classList.remove('hidden');
+            document.getElementById('seccionDoctor').classList.add('hidden');
+            listarMedicos();
+        } else {
+            document.getElementById('seccionAdmin').classList.add('hidden');
+            document.getElementById('seccionDoctor').classList.remove('hidden');
+        }
+    }
+
+    function cerrarSesion() { location.reload(); }
+
+    async function registrarNuevoMedico(e) {
+        e.preventDefault();
+        const nombreDoctor = document.getElementById('newMedNombre').value.trim();
+        const numMedico = document.getElementById('newMedNum').value.trim().toLowerCase();
+        const nuevaClave = document.getElementById('newMedPass').value.trim();
+
+        try {
+            const todosDocs = await dbLocal.allDocs({ include_docs: true });
+            const medicosExistentes = todosDocs.rows.filter(r => r.doc.tipo === 'usuario_medico');
+
+            if (medicosExistentes.some(m => m.doc.numMedico === numMedico)) { alert(`⚠️ El N° de Médico "${numMedico}" ya existe.`); return; }
+
+            const docMedico = {
+                _id: 'user_medico_' + numMedico,
+                tipo: 'usuario_medico',
+                numMedico: numMedico,
+                claveCifrada: CryptoJS.AES.encrypt(nuevaClave, CLAVE_SECRETA).toString(),
+                nombreCompleto: nombreDoctor,
+                fechaRegistro: new Date().toISOString()
+            };
+
+            await dbLocal.put(docMedico);
+            alert(`✅ Médico ${nombreDoctor} registrado.`);
+            document.getElementById('formNuevoMedico').reset();
+            listarMedicos();
+        } catch (err) { alert("Error al registrar médico."); }
+    }
+
+    function listarMedicos() {
+        const contenedor = document.getElementById('listaMedicosAdmin');
+        if (!contenedor) return;
+
+        dbLocal.allDocs({ include_docs: true }).then(result => {
+            const medicos = result.rows.filter(row => row.doc.tipo === 'usuario_medico');
+            let html = '';
+            medicos.forEach(row => {
+                const doc = row.doc;
+                html += `
+                    <div class="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-indigo-200">
+                        <div>
+                            <p class="font-bold text-slate-800 text-sm">${doc.nombreCompleto}</p>
+                            <p class="text-xs text-indigo-700 font-bold">N° Identificador: ${doc.numMedico}</p>
+                        </div>
+                        <button onclick="revocarAccesoMedico('${doc._id}', '${doc.nombreCompleto}')" class="bg-rose-600 text-white px-3 py-1 rounded-xl font-bold text-xs">Revocar</button>
+                    </div>
+                `;
+            });
+            contenedor.innerHTML = html || '<p class="text-xs italic text-indigo-700">Sin médicos registrados.</p>';
+        });
+    }
+
+    function revocarAccesoMedico(idMedico, nombre) {
+        if (!confirm(`⚠️ ¿Revocar acceso a ${nombre}?`)) return;
+        dbLocal.get(idMedico).then(doc => dbLocal.remove(doc)).then(() => listarMedicos());
+    }
+
+    function buscarQrAdmin() {
+        const duiBuscado = document.getElementById('buscarDuiAdminInput').value.trim();
+        const cajaQrAdmin = document.getElementById('cajaQrAdmin');
+        const qrDisplayAdmin = document.getElementById('qrcodeDisplayAdmin');
+        const pinDisplay = document.getElementById('pinAdminDisplay');
+        qrDisplayAdmin.innerHTML = '';
+
+        if (!validarDui(duiBuscado)) { alert('❌ Ingrese DUI de 9 dígitos.'); return; }
+
+        dbLocal.allDocs({ include_docs: true, descending: true }).then(result => {
+            const registros = result.rows.filter(row => row.doc.dui === duiBuscado && row.doc.notaPrivada);
+            if (registros.length === 0) { cajaQrAdmin.classList.add('hidden'); alert(`⚠️ No hay registro para DUI: ${duiBuscado}`); return; }
+
+            const bytesUl = CryptoJS.AES.decrypt(registros[0].doc.notaPrivada, CLAVE_SECRETA);
+            const datosUl = JSON.parse(bytesUl.toString(CryptoJS.enc.Utf8));
+            
+            pinDisplay.innerText = datosUl.pin || 'N/A';
+            cajaQrAdmin.classList.remove('hidden');
+            
+            new QRCode(qrDisplayAdmin, {
+                text: datosUl.qrToken || `AC_PWA_${duiBuscado}_${datosUl.pin}`,
+                width: 160, height: 160, colorDark : "#3730a3", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H
+            });
+        });
+    }
+
+    function comprobarPacienteExistente() {
+        const dui = document.getElementById('duiPaciente').value.trim();
+        const pinInput = document.getElementById('pinPaciente');
+        const msgExiste = document.getElementById('msgPacienteExiste');
+
+        if (!validarDui(dui)) { pinInput.disabled = false; msgExiste.classList.add('hidden'); pinPacienteEncontrado = null; return; }
+
+        dbLocal.allDocs({ include_docs: true, descending: true }).then(result => {
+            const registros = result.rows.filter(row => row.doc.dui === dui && row.doc.notaPrivada);
+            if (registros.length > 0) {
+                const bytes = CryptoJS.AES.decrypt(registros[0].doc.notaPrivada, CLAVE_SECRETA);
+                const datos = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+                if (datos.pin) {
+                    pinPacienteEncontrado = datos.pin;
+                    pinInput.value = datos.pin;
+                    pinInput.disabled = true;
+                    msgExiste.classList.remove('hidden');
+
+                    if (datos.telPaciente) document.getElementById('telPaciente').value = datos.telPaciente;
+                    if (datos.tipoSangre) document.getElementById('tipoSangre').value = datos.tipoSangre;
+                    if (datos.contactoNombre) document.getElementById('contactoNombre').value = datos.contactoNombre;
+                    if (datos.contactoTel) document.getElementById('contactoTel').value = datos.contactoTel;
+                    if (datos.alergias) document.getElementById('inputAlergias').value = datos.alergias;
+                    if (datos.operaciones) document.getElementById('inputOperaciones').value = datos.operaciones;
+                    if (datos.inyecciones) document.getElementById('inputInyecciones').value = datos.inyecciones;
+                }
+            } else {
+                pinInput.disabled = false;
+                msgExiste.classList.add('hidden');
+                pinPacienteEncontrado = null;
+            }
+        });
+    }
+
+    function agregarFilaMedicamento() {
+        const contenedor = document.getElementById('listaMedicamentosForm');
+        const nuevaFila = document.createElement('div');
+        nuevaFila.className = 'fila-med grid grid-cols-1 md:grid-cols-4 gap-2 bg-white p-3 rounded-2xl border';
+        nuevaFila.innerHTML = `
+            <input type="text" placeholder="Medicamento" class="med-nombre p-2.5 rounded-xl bg-slate-50 border text-sm font-medium" required>
+            <input type="text" placeholder="Dosis" class="med-dosis p-2.5 rounded-xl bg-slate-50 border text-sm" required>
+            <input type="text" placeholder="Horario" class="med-horario p-2.5 rounded-xl bg-slate-50 border text-sm" required>
+            <div class="flex gap-1">
+                <input type="text" placeholder="Duración" class="med-duracion p-2.5 rounded-xl bg-slate-50 border text-sm flex-1" required>
+                <button type="button" onclick="this.parentElement.parentElement.remove()" class="text-rose-600 font-bold p-2 text-xs">✕</button>
+            </div>
+        `;
+        contenedor.appendChild(nuevaFila);
+    }
+
+    function guardarConsulta(e) {
+        e.preventDefault();
+        const dui = document.getElementById('duiPaciente').value.trim();
+        const pin = pinPacienteEncontrado || document.getElementById('pinPaciente').value.trim();
+
+        if (!validarDui(dui)) { alert('❌ DUI no válido.'); return; }
+
+        const filas = document.querySelectorAll('.fila-med');
+        const listaMeds = [];
+        filas.forEach(f => {
+            listaMeds.push({
+                nombre: f.querySelector('.med-nombre').value.trim(),
+                dosis: f.querySelector('.med-dosis').value.trim(),
+                horario: f.querySelector('.med-horario').value.trim(),
+                duracion: f.querySelector('.med-duracion').value.trim()
+            });
+        });
+
+        const datosConsulta = {
+            pin: pin,
+            qrToken: `AC_PWA_${dui}_${pin}`,
+            telPaciente: document.getElementById('telPaciente').value.trim(),
+            tipoSangre: document.getElementById('tipoSangre').value,
+            contactoNombre: document.getElementById('contactoNombre').value.trim(),
+            contactoTel: document.getElementById('contactoTel').value.trim(),
+            alergias: document.getElementById('inputAlergias').value.trim(),
+            operaciones: document.getElementById('inputOperaciones').value.trim(),
+            inyecciones: document.getElementById('inputInyecciones').value.trim(),
+            proximaCitaFecha: document.getElementById('proximaCitaFecha').value,
+            proximaCitaMotivo: document.getElementById('proximaCitaMotivo').value.trim(),
+            medicamentosDetallados: listaMeds,
+            diagnostico: document.getElementById('notaMedica').value.trim()
+        };
+
+        const registro = {
+            _id: 'exp_' + dui + '_' + Date.now(),
+            dui: dui,
+            notaPrivada: CryptoJS.AES.encrypt(JSON.stringify(datosConsulta), CLAVE_SECRETA).toString(),
+            fecha: new Date().toLocaleString()
+        };
+
+        dbLocal.put(registro).then(() => {
+            alert('✅ Expediente y consulta guardados exitosamente.');
+            document.getElementById('buscarDuiInput').value = dui;
+            buscarHistorialPaciente();
+            document.getElementById('formConsulta').reset();
+            document.getElementById('pinPaciente').disabled = false;
+            document.getElementById('msgPacienteExiste').classList.add('hidden');
+        }).catch(err => console.error(err));
+    }
+
+    function buscarHistorialPaciente() {
+        const duiBuscado = document.getElementById('buscarDuiInput').value.trim();
+        const contenedor = document.getElementById('resultadoHistorial');
+        const cajaQr = document.getElementById('cajaQrPaciente');
+        const qrDisplay = document.getElementById('qrcodeDisplay');
+        const pinDisplayDoc = document.getElementById('pinDoctorDisplay');
+        contenedor.innerHTML = ''; qrDisplay.innerHTML = '';
+
+        if (!validarDui(duiBuscado)) { alert('❌ DUI inválido.'); return; }
+
+        dbLocal.allDocs({ include_docs: true, descending: true }).then(result => {
+            const registros = result.rows.filter(row => row.doc.dui === duiBuscado && row.doc.notaPrivada);
+            if (registros.length === 0) { cajaQr.classList.add('hidden'); contenedor.innerHTML = '<p class="text-sm italic">Sin consultas.</p>'; return; }
+
+            const bytesUl = CryptoJS.AES.decrypt(registros[0].doc.notaPrivada, CLAVE_SECRETA);
+            const datosUl = JSON.parse(bytesUl.toString(CryptoJS.enc.Utf8));
+            
+            pinDisplayDoc.innerText = datosUl.pin || 'N/A';
+            cajaQr.classList.remove('hidden');
+            new QRCode(qrDisplay, { text: datosUl.qrToken || `AC_PWA_${duiBuscado}_${datosUl.pin}`, width: 160, height: 160, colorDark : "#0f766e", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
+
+            let html = `<h3 class="font-bold text-slate-700">Historial de Consultas (${registros.length}):</h3>`;
+            registros.forEach(row => {
+                const doc = row.doc;
+                let datos = JSON.parse(CryptoJS.AES.decrypt(doc.notaPrivada, CLAVE_SECRETA).toString(CryptoJS.enc.Utf8));
+                let htmlMeds = datos.medicamentosDetallados ? datos.medicamentosDetallados.map(m => `<li>💊 <strong>${m.nombre}</strong> (${m.dosis}) — ${m.horario}</li>`).join('') : 'Sin medicamentos';
+
+                html += `
+                    <div class="p-4 bg-slate-50 rounded-2xl border space-y-2 text-sm">
+                        <div class="flex justify-between font-bold border-b pb-1">
+                            <span>📅 ${doc.fecha}</span>
+                            <span>🩸 Sangre: ${datos.tipoSangre || 'N/A'}</span>
+                        </div>
+                        <p>📱 <strong>Teléfono Paciente:</strong> ${datos.telPaciente || 'N/A'}</p>
+                        <p>📞 <strong>Emergencia:</strong> ${datos.contactoNombre || 'N/A'} (${datos.contactoTel || 'N/A'})</p>
+                        <p>💉 <strong>Inyecciones/Vacunas:</strong> ${datos.inyecciones || 'Ninguna'}</p>
+                        <p>📅 <strong>Próxima Cita:</strong> ${datos.proximaCitaFecha ? new Date(datos.proximaCitaFecha).toLocaleString() + ' - ' + datos.proximaCitaMotivo : 'Sin programar'}</p>
+                        <div class="bg-white p-2 rounded-xl border"><ul class="list-disc list-inside">${htmlMeds}</ul></div>
+                        <p>🩺 <strong>Diagnóstico:</strong> ${datos.diagnostico}</p>
+                    </div>
+                `;
+            });
+            contenedor.innerHTML = html;
+        });
+    }
+</script>
+</body>
+</html>
